@@ -1,0 +1,56 @@
+WITH
+  -- 1) revenue and goal one stream
+  combined AS (
+    SELECT
+      DATE(date)        AS day,
+      predict           AS amount,
+      'revenue'         AS measure
+    FROM `data-analytics-mate.DA.revenue_predict`
+
+
+    UNION ALL
+
+
+    SELECT
+      DATE(date)        AS day,
+      cost              AS amount,
+      'goal'            AS measure
+    FROM `data-analytics-mate.DA.paid_search_cost`
+  ),
+
+
+  -- 2)  daily revenue vs. daily goal
+  daily_totals AS (
+    SELECT
+      day,
+      SUM(IF(measure = 'revenue', amount, 0))  AS daily_revenue,
+      SUM(IF(measure = 'goal',    amount, 0))  AS daily_goal
+    FROM combined
+    GROUP BY day
+  ),
+
+
+  -- 3)  totals and % fulfillment
+  final_data AS (
+    SELECT
+      day,
+      SUM(daily_revenue) OVER (ORDER BY day)  AS cumulative_revenue,
+      SUM(daily_goal)    OVER (ORDER BY day)  AS cumulative_goal,
+      ROUND(
+        SUM(daily_revenue) OVER (ORDER BY day)
+        /
+        NULLIF(SUM(daily_goal) OVER (ORDER BY day), 0),
+        4
+      )                                      AS pct_cumulative_fulfillment
+    FROM daily_totals
+  )
+
+
+-- 4) Select from the last CTE
+SELECT
+  day,
+  cumulative_revenue,
+  cumulative_goal,
+  pct_cumulative_fulfillment
+FROM final_data
+ORDER BY day;
