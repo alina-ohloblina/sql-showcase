@@ -1,0 +1,69 @@
+WITH session_engaged AS (
+  SELECT
+    ep.ga_session_id,
+
+
+    -- events where session_engaged = 1
+    SUM(
+      CASE
+        WHEN params.key = 'session_engaged'
+         AND params.value.int_value = 1
+        THEN 1
+        ELSE 0
+      END
+    ) AS engaged_events,
+
+
+    -- all events where session_engaged is present
+    SUM(
+      CASE
+        WHEN params.key = 'session_engaged'
+        THEN 1
+        ELSE 0
+      END
+    ) AS total_events
+
+
+  FROM
+    `data-analytics-mate.DA.event_params` AS ep
+  CROSS JOIN
+    UNNEST(ep.event_params) AS params
+
+
+  GROUP BY
+    ep.ga_session_id
+)
+
+
+SELECT
+  sp.device,
+
+
+  -- format the percentage as a string with "%"
+  CONCAT(
+    CAST(
+      ROUND(
+        100.0 * SUM(se.engaged_events)
+        / NULLIF(SUM(se.total_events), 0),
+      2
+      )
+      AS STRING
+    ),
+    '%'
+  ) AS session_engaged_share
+
+
+FROM
+  session_engaged AS se
+JOIN
+  `data-analytics-mate.DA.session_params` AS sp
+ON
+  se.ga_session_id = sp.ga_session_id
+
+
+GROUP BY
+  sp.device
+
+
+ORDER BY
+  sp.device;
